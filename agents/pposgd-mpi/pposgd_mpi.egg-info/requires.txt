@@ -1,0 +1,16 @@
+mujoco-py~=0.5.7
+gym>=0.9.1[mujoco]
+mujoco-py
+scipy
+tqdm
+joblib
+zmq
+dill
+progressbar2
+mpi4py~=2.0.0
+
+[tf]
+tensorflow~=1.2
+
+[tf_gpu]
+tensorflow-gpu>=1.1

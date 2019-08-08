@@ -1,0 +1,5 @@
+pposgd_mpi.egg-info/PKG-INFO
+pposgd_mpi.egg-info/SOURCES.txt
+pposgd_mpi.egg-info/dependency_links.txt
+pposgd_mpi.egg-info/requires.txt
+pposgd_mpi.egg-info/top_level.txt
