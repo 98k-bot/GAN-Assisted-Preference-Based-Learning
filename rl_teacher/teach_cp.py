@@ -117,16 +117,13 @@ class ComparisonRewardPredictor():
         segment_reward_pred_right = tf.reduce_sum(alt_q_value, axis=1)
         reward_logits = tf.stack([segment_reward_pred_left, segment_reward_pred_right], axis=1)  # (batch_size, 2)
 
-        self.labels = tf.placeholder(dtype=tf.float32, shape=(None,), name="comparison_labels")
-        self.labelsleft = tf.placeholder(dtype=tf.int32,shape=(None,), name="comparison_labelsleft")
-        self.labelsright = tf.placeholder(dtype=tf.float32, shape=(None,), name="comparison_labelsright")
-        label_logits = tf.stack([self.labelsleft, 1 - self.labelsleft], axis=1)  # (batch_size, 2)
+        self.labels = tf.placeholder(dtype=tf.int32, shape=(None,), name="comparison_labels")
+
         # delta = 1e-5
         # clipped_comparison_labels = tf.clip_by_value(self.comparison_labels, delta, 1.0-delta)
 
-        data_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=reward_logits, labels=self.labelsleft)
-        #data_loss = tf.nn.softmax_cross_entropy_with_logits_v2(logits=reward_logits, labels=label_logits)
-        #data_loss = tf.reduce_mean(segment_reward_pred_left*self.labels + segment_reward_pred_right *(1 - self.labels))
+        data_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=reward_logits, labels=self.labels)
+
         self.loss_op = tf.reduce_mean(data_loss)
 
         global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -190,7 +187,7 @@ class ComparisonRewardPredictor():
         if not os.path.exists('/tmp/GAN/'):
             D_real, D_fake = GAN.discriminator_train(obs_preferened_transpose, obs_policy_transpose)
         else:
-            saver = tf.train.Saver(max_to_keep=5)
+            saver = tf.train.Saver()
             sess = tf.Session()
             #saver.restore(sess, "/tmp/GAN/vanillaGAN_model.ckpt")
             #print("GAN Model restored.")
@@ -202,36 +199,18 @@ class ComparisonRewardPredictor():
         right_obs = np.asarray([comp['right']['obs'] for comp in labeled_comparisons])
         right_acts = np.asarray([comp['right']['actions'] for comp in labeled_comparisons])
         labels = np.asarray([comp['label'] for comp in labeled_comparisons])
-        #print(labels)
+        print(labels)
         i = 0
         for comp in labeled_comparisons:
             if comp['label'] == 0 and np.all(D_real[i] > D_fake[i]):
-                labels[i] = labels[i]
-            elif comp['label'] == 0 and np.all(D_real[i] < D_fake[i]):
                 labels[i] = 1 - labels[i]
-            elif comp['label'] == 1 and np.all(D_real[i] > D_fake[i]):
+            elif comp['label'] == 0 and np.all(D_real[i] < D_fake[i]):
                 labels[i] = labels[i]
-            else: labels[i] = 1 - labels[i]
+            elif comp['label'] == 1 and np.all(D_real[i] > D_fake[i]):
+                labels[i] = 1 - labels[i]
+            else: labels[i] = labels[i]
             i = i+1
         print(labels)
-        labelsleft = np.asarray([comp['label'] for comp in labeled_comparisons])
-        labelsright = np.asarray([comp['label'] for comp in labeled_comparisons])
-        #for i in range(minibatch_size):
-        #    labelsleft.append(0.)
-        #    labelsright.append(0.)
-        i = 0
-        for comp in labeled_comparisons:
-            if comp['label'] == 0 :
-                labelsleft[i] = D_fake[i]
-                labelsright[i] = D_real[i]
-            else:
-                labelsleft[i] = D_real[i]
-                labelsright[i] = D_fake[i]
-            i = i+1
-        print('labelsleft',labelsleft)
-        labelsleft = np.array(labelsleft)
-        labelsright = np.array(labelsright)
-        #print('labelsright',labelsright)
 
         with self.graph.as_default():
             _, loss = self.sess.run([self.train_op, self.loss_op], feed_dict={
@@ -240,11 +219,8 @@ class ComparisonRewardPredictor():
                 self.segment_alt_obs_placeholder: right_obs,
                 self.segment_alt_act_placeholder: right_acts,
                 self.labels: labels,
-                self.labelsleft : labelsleft,
-                self.labelsright: labelsright,
                 K.learning_phase(): True
             })
-            print('loss',loss)
             self._elapsed_predictor_training_iters += 1
             self._write_training_summaries(loss)
 
