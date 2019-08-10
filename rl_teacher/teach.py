@@ -115,20 +115,20 @@ class ComparisonRewardPredictor():
         # video clips of segments are easier for humans to evaluate
         segment_reward_pred_left = tf.reduce_sum(self.q_value, axis=1)
         segment_reward_pred_right = tf.reduce_sum(alt_q_value, axis=1)
-        reward_logits = tf.stack([segment_reward_pred_left, segment_reward_pred_right], axis=1)  # (batch_size, 2)
-
-        self.labels = tf.placeholder(dtype=tf.float32, shape=(None,), name="comparison_labels")
+        reward_logitsleft = tf.stack([segment_reward_pred_left, segment_reward_pred_right], axis=1)  # (batch_size, 2)
+        reward_logitsright = tf.stack([segment_reward_pred_right, segment_reward_pred_left], axis=1)  # (batch_size, 2)
+        self.labels = tf.placeholder(dtype=tf.int32, shape=(None,), name="comparison_labels")
         self.labelsleft = tf.placeholder(dtype=tf.int32,shape=(None,), name="comparison_labelsleft")
-        self.labelsright = tf.placeholder(dtype=tf.float32, shape=(None,), name="comparison_labelsright")
+        self.labelsright = tf.placeholder(dtype=tf.int32, shape=(None,), name="comparison_labelsright")
         label_logits = tf.stack([self.labelsleft, 1 - self.labelsleft], axis=1)  # (batch_size, 2)
         # delta = 1e-5
         # clipped_comparison_labels = tf.clip_by_value(self.comparison_labels, delta, 1.0-delta)
 
-        data_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=reward_logits, labels=self.labelsleft)
+        data_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=reward_logitsleft,
+                                                                   labels=self.labels) +tf.nn.sparse_softmax_cross_entropy_with_logits(logits=reward_logitsright, labels=1 - self.labels)
         #data_loss = tf.nn.softmax_cross_entropy_with_logits_v2(logits=reward_logits, labels=label_logits)
         #data_loss = tf.reduce_mean(segment_reward_pred_left*self.labels + segment_reward_pred_right *(1 - self.labels))
         self.loss_op = tf.reduce_mean(data_loss)
-
         global_step = tf.Variable(0, name='global_step', trainable=False)
         self.train_op = tf.train.AdamOptimizer().minimize(self.loss_op, global_step=global_step)
 
@@ -202,18 +202,18 @@ class ComparisonRewardPredictor():
         right_obs = np.asarray([comp['right']['obs'] for comp in labeled_comparisons])
         right_acts = np.asarray([comp['right']['actions'] for comp in labeled_comparisons])
         labels = np.asarray([comp['label'] for comp in labeled_comparisons])
-        #print(labels)
-        i = 0
-        for comp in labeled_comparisons:
-            if comp['label'] == 0 and np.all(D_real[i] > D_fake[i]):
-                labels[i] = labels[i]
-            elif comp['label'] == 0 and np.all(D_real[i] < D_fake[i]):
-                labels[i] = 1 - labels[i]
-            elif comp['label'] == 1 and np.all(D_real[i] > D_fake[i]):
-                labels[i] = labels[i]
-            else: labels[i] = 1 - labels[i]
-            i = i+1
         print(labels)
+        i = 0
+        #for comp in labeled_comparisons:
+        #    if comp['label'] == 0 and np.all(D_real[i] > D_fake[i]):
+        #        labels[i] = labels[i]
+        #    elif comp['label'] == 0 and np.all(D_real[i] < D_fake[i]):
+        #        labels[i] = 1 - labels[i]
+        #    elif comp['label'] == 1 and np.all(D_real[i] > D_fake[i]):
+        #        labels[i] = labels[i]
+        #    else: labels[i] = 1 - labels[i]
+        #    i = i+1
+        #print(labels)
         labelsleft = np.asarray([comp['label'] for comp in labeled_comparisons])
         labelsright = np.asarray([comp['label'] for comp in labeled_comparisons])
         #for i in range(minibatch_size):
@@ -221,7 +221,7 @@ class ComparisonRewardPredictor():
         #    labelsright.append(0.)
         i = 0
         for comp in labeled_comparisons:
-            if comp['label'] == 0 :
+            if comp['label'] == 0:
                 labelsleft[i] = D_fake[i]
                 labelsright[i] = D_real[i]
             else:
@@ -229,9 +229,7 @@ class ComparisonRewardPredictor():
                 labelsright[i] = D_fake[i]
             i = i+1
         print('labelsleft',labelsleft)
-        labelsleft = np.array(labelsleft)
-        labelsright = np.array(labelsright)
-        #print('labelsright',labelsright)
+        print('labelsright',labelsright)
 
         with self.graph.as_default():
             _, loss = self.sess.run([self.train_op, self.loss_op], feed_dict={
@@ -244,7 +242,7 @@ class ComparisonRewardPredictor():
                 self.labelsright: labelsright,
                 K.learning_phase(): True
             })
-            print('loss',loss)
+            print('loss', loss)
             self._elapsed_predictor_training_iters += 1
             self._write_training_summaries(loss)
 
