@@ -275,7 +275,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-e', '--env_id', default="ShortHopper-v1", type=str)
-    parser.add_argument('-p', '--predictor', default="synth", type=str)
+    parser.add_argument('-p', '--predictor', default="human", type=str)
     parser.add_argument('-n', '--name', default="human-175-hopper", type=str)
     parser.add_argument('-s', '--seed', default=6, type=int)
     parser.add_argument('-w', '--workers', default=4, type=int)
@@ -321,8 +321,8 @@ def main():
 
         elif args.predictor == "human":
             bucket = os.environ.get('RL_TEACHER_GCS_BUCKET')
-            #bucket = "gs://rl-teacher=zhanhuixin"
-            assert bucket and bucket.startswith("gs://"), "env variable RL_TEACHER_GCS_BUCKET must start with gs://"
+            bucket = "gs://rl-teacher-preference"
+            #assert bucket and bucket.startswith("gs://"), "env variable RL_TEACHER_GCS_BUCKET must start with gs://"
             comparison_collector = HumanComparisonCollector(env_id, experiment_name=experiment_name)
         else:
             raise ValueError("Bad value for --predictor: %s" % args.predictor)
@@ -335,29 +335,29 @@ def main():
             label_schedule=label_schedule,
         )
 
-        print("Starting random rollouts to generate pretraining segments. No learning will take place...")
-        pretrain_segments = segments_from_rand_rollout(
-            env_id, make_with_torque_removed, n_desired_segments=pretrain_labels * 2,
-            clip_length_in_seconds=CLIP_LENGTH, workers=args.workers)
-        for i in range(pretrain_labels):  # Turn our random segments into comparisons
-            comparison_collector.add_segment_pair(pretrain_segments[i], pretrain_segments[i + pretrain_labels])
-
-        # Sleep until the human has labeled most of the pretraining comparisons
-        while len(comparison_collector.labeled_comparisons) < int(pretrain_labels * 0.75):
-            comparison_collector.label_unlabeled_comparisons()
-            if args.predictor == "synth":
-                print("%s synthetic labels generated... " % (len(comparison_collector.labeled_comparisons)))
-            elif args.predictor == "human":
-                print("%s/%s comparisons labeled. Please add labels w/ the human-feedback-api. Sleeping... " % (
-                    len(comparison_collector.labeled_comparisons), pretrain_labels))
-                sleep(5)
-
-        # Start the actual training
-
-        for i in range(args.pretrain_iters):
-            predictor.train_predictor()  # Train on pretraining labels
-            if i % 10 == 0:
-                print("%s/%s predictor pretraining iters... " % (i, args.pretrain_iters))
+        # print("Starting random rollouts to generate pretraining segments. No learning will take place...")
+        # pretrain_segments = segments_from_rand_rollout(
+        #     env_id, make_with_torque_removed, n_desired_segments=pretrain_labels * 2,
+        #     clip_length_in_seconds=CLIP_LENGTH, workers=args.workers)
+        # for i in range(pretrain_labels):  # Turn our random segments into comparisons
+        #     comparison_collector.add_segment_pair(pretrain_segments[i], pretrain_segments[i + pretrain_labels])
+        #
+        # # Sleep until the human has labeled most of the pretraining comparisons
+        # while len(comparison_collector.labeled_comparisons) < int(pretrain_labels * 0.75):
+        #     comparison_collector.label_unlabeled_comparisons()
+        #     if args.predictor == "synth":
+        #         print("%s synthetic labels generated... " % (len(comparison_collector.labeled_comparisons)))
+        #     elif args.predictor == "human":
+        #         print("%s/%s comparisons labeled. Please add labels w/ the human-feedback-api. Sleeping... " % (
+        #             len(comparison_collector.labeled_comparisons), pretrain_labels))
+        #         sleep(5)
+        #
+        # # Start the actual training
+        #
+        # for i in range(args.pretrain_iters):
+        #     predictor.train_predictor()  # Train on pretraining labels
+        #     if i % 10 == 0:
+        #         print("%s/%s predictor pretraining iters... " % (i, args.pretrain_iters))
         #saver = tf.train.Saver(max_to_keep=5)
         #save_path = saver.save(sess, "/tmp/GAN/GAN_preference_based_model.ckpt")
         #print("Model saved in path: %s" % save_path)

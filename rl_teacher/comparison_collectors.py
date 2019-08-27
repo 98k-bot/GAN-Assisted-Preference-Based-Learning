@@ -71,7 +71,7 @@ class HumanComparisonCollector():
         media_id = "%s-%s.mp4" % (comparison_uuid, side)
         local_path = osp.join(tmp_media_dir, media_id)
         gcs_bucket = os.environ.get('RL_TEACHER_GCS_BUCKET')
-        #gcs_bucket = "gs://rl-teacher-zhanhuixin"
+        gcs_bucket = "gs://rl-teacher-preference"
         gcs_path = osp.join(gcs_bucket, media_id)
         self._upload_workers.apply_async(_write_and_upload_video, (self.env_id, gcs_path, local_path, segment))
 
